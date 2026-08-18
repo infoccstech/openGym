@@ -1,0 +1,53 @@
+# Builds an installable Android APK you can download without Android Studio.
+#
+#   Actions tab → "Android APK" → latest run → download the "openGym-debug-apk" artifact,
+#   copy it to your phone and open it (allow installs from your browser/files app once).
+#
+# It builds on every push to main, and on demand from the Actions tab (Run workflow). The APK
+# is debug-signed — fine for sideloading onto your own phone; it is not a Play Store release.
+name: Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/android-apk.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # node:22-alpine in the Docker images — keep CI on the same major.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      # Gradle for the Capacitor Android project needs JDK 21 (see docs/MOBILE.md).
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v3
+      - run: npm ci
+        working-directory: frontend
+      # Bakes the CDN media base into the bundle and copies the web build into android/ + ios/.
+      - run: npm run build:mobile
+        working-directory: frontend
+      - run: ./gradlew assembleDebug --no-daemon
+        working-directory: frontend/android
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openGym-debug-apk
+          path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
