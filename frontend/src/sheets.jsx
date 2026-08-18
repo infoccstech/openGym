@@ -14,7 +14,8 @@ import Icon from './components/Icon.jsx'
 import { Button, Slider, Switch, Segmented, SelectRow, Row } from './components/ui.jsx'
 import { glyphOf, GLYPH_GROUPS, DEFAULT_GLYPH } from './lib/glyphs.js'
 import BodyMap from './components/BodyMap.jsx'
-import { loadOfWorkouts } from './lib/muscles.js'
+import { loadOfWorkouts, musclesOf, MUSCLE_NAME } from './lib/muscles.js'
+import { substitutesFor, primaryMuscle } from './lib/substitute.js'
 import { parseImport, mergeImport } from './lib/import-csv.js'
 import { buildPlanBundle, parsePlan, mergePlan, printPlan } from './lib/plan-share.js'
 import { estimate1RM, best1RM, is1RMRecord, REP_CAP } from './lib/onerm.js'
@@ -296,6 +297,7 @@ function ExerciseDetail({ ex, close }) {
     {ex.desc && <div className="exnote">{ex.desc}</div>}
     {best > 0 && <div className="small row" style={{ marginBottom: 6, gap: 5 }}><Icon name="trophy" style={{ fontSize: 14, color: 'var(--yellow)' }} />{t('Best:')} <b className="accent">{fmtNum(best)} {st.unit}</b>{last ? ` · ${t('last')} ${fmtDate(last.d)}: ${last.sets.map(s => setLabel(ex.id, s, last.target)).join(', ')}` : ''}</div>}
     <Button variant="primary" icon="plus" style={{ margin: '10px 0 4px' }} onClick={() => addToRoutineSheet(ex)}>{t('Add to my plan')}</Button>
+    {!isCardio(ex) && <Button icon="shuffle" style={{ marginBottom: 4 }} onClick={() => { close(); substituteSheet(ex, picked => exerciseDetailSheet(picked)) }}>{t('Find alternatives')}</Button>}
     {ex.custom && <div className="row" style={{ gap: 8, marginTop: 8 }}>
       <Button icon="pencil" style={{ flex: 1 }} onClick={() => { close(); customExSheet(ex) }}>{t('Edit')}</Button>
       <Button variant="danger" icon="trash" style={{ flex: 1 }} onClick={() => deleteCustomEx(ex, close)}>{t('Delete')}</Button>
@@ -305,6 +307,66 @@ function ExerciseDetail({ ex, close }) {
   </>
 }
 export const exerciseDetailSheet = ex => ui().openSheet(close => <ExerciseDetail ex={ex} close={close} />)
+
+/* ============================ alternatives / swap ============================ */
+// Alternatives for one exercise — for when a machine is taken or you don't own it, or a
+// muscle is sore and you want to train around it. The ranking is pure and offline
+// (lib/substitute.js): same target muscle, ranked by muscle-map overlap — no model, no
+// network. Two knobs: the equipment you can use right now, and a muscle to spare.
+function Substitute({ ex, onPick }) {
+  const st = useStore(s => s.S)
+  const [equip, setEquip] = useState([])     // [] = any equipment
+  const [avoid, setAvoid] = useState([])     // [] = spare nothing
+  const pool = allExercises(st)
+
+  // Equipment worth offering: what the unconstrained alternatives actually use, most common
+  // first — so every chip has results behind it, like the Library's equipment row. Computed
+  // ignoring the current equipment filter so toggling one never makes the others vanish.
+  const eqOpts = equipmentOf(substitutesFor(ex, { pool, limit: 300 }))
+  // Muscles worth sparing: the *supporting* muscles this movement trains. Its primary can't be
+  // spared — every real alternative has to keep hitting it — so a sore-shoulder swap for a
+  // press drops front-delt work, a sore-elbow swap for a row drops the biceps, and so on.
+  const primary = primaryMuscle(ex)
+  const avoidOpts = Object.entries(musclesOf(ex))
+    .filter(([slug, w]) => slug !== primary && w > 0 && MUSCLE_NAME[slug])
+    .map(([slug]) => slug)
+
+  const subs = substitutesFor(ex, {
+    pool,
+    equipment: equip.length ? equip : undefined,
+    avoid: avoid.length ? avoid : undefined,
+    limit: 40,
+  })
+  const toggle = (arr, set, v) => set(arr.includes(v) ? arr.filter(x => x !== v) : [...arr, v])
+
+  return <>
+    <h3 className="capitalize">{t('Alternatives for “{0}”', ex.n)}</h3>
+    <div className="muted small" style={{ marginBottom: 12 }}>{t('Same muscle, other options — pick what your gym, and your body, allow today.')}</div>
+    {eqOpts.length > 0 && <>
+      <h4 className="sec">{t('Equipment you can use')}</h4>
+      <div className="chips" style={{ marginBottom: 10 }}>
+        <button className={'chip nocap' + (!equip.length ? ' on' : '')} onClick={() => setEquip([])}>{t('Any equipment')}</button>
+        {eqOpts.map(x => <button key={x} className={'chip' + (equip.includes(x) ? ' on' : '')} onClick={() => toggle(equip, setEquip, x)}>{t(x)}</button>)}
+      </div>
+    </>}
+    {avoidOpts.length > 0 && <>
+      <h4 className="sec">{t('Sore muscle? Leave it out')}</h4>
+      <div className="chips" style={{ marginBottom: 10 }}>
+        {avoidOpts.map(slug => <button key={slug} className={'chip' + (avoid.includes(slug) ? ' on' : '')} onClick={() => toggle(avoid, setAvoid, slug)}>{t(MUSCLE_NAME[slug])}</button>)}
+      </div>
+    </>}
+    <div className="list">
+      {subs.map(e => <div key={e.id} className="item" onClick={() => onPick(e)}>
+        <Thumb ex={e} />
+        <div className="grow"><div className="tt capitalize">{e.n}</div><div className="ss capitalize">{t(e.tg || e.bp)} · {t(e.eq)}</div></div>
+        <Icon name="chevronRight" className="chev" />
+      </div>)}
+      {!subs.length && <div className="empty">{t('No alternatives match those filters — loosen them a little.')}</div>}
+    </div>
+  </>
+}
+// onPick receives the chosen exercise; the sheet closes first so the caller can open its own.
+export const substituteSheet = (ex, onPick) => ui().openSheet(close => <Substitute ex={ex} onPick={e => { close(); onPick(e) }} />)
 
 /* ============================ add to routine ============================ */
 function AddToRoutine({ ex, close }) {

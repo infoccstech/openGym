@@ -569,5 +569,13 @@ export default {
   '{0} sets · {1} work': '{0} series · {1} trabajo',
   'Make superset with previous': 'Hacer superserie con anterior',
   'Make superset with next': 'Hacer superserie con siguiente',
-  'Unpair': 'Desvincular'
+  'Unpair': 'Desvincular',
+  'Find alternatives': 'Buscar alternativas',
+  'Alternatives for “{0}”': 'Alternativas para «{0}»',
+  'Same muscle, other options — pick what your gym, and your body, allow today.': 'Mismo músculo, otras opciones: elige lo que tu gym, y tu cuerpo, permitan hoy.',
+  'Equipment you can use': 'Equipo que puedes usar',
+  'Sore muscle? Leave it out': '¿Músculo dolorido? Déjalo fuera',
+  'No alternatives match those filters — loosen them a little.': 'Ninguna alternativa con esos filtros: afloja un poco.',
+  'Swap exercise': 'Cambiar ejercicio',
+  'Swapped to {0}': 'Cambiado a {0}'
 }
