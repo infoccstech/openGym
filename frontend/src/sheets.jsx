@@ -368,9 +368,10 @@ function Substitute({ ex, onPick }) {
     </>}
     {avoidOpts.length > 0 && <>
       <h4 className="sec">{t('Sore muscle? Leave it out')}</h4>
-      <div className="chips" style={{ marginBottom: 10 }}>
+      <div className="chips" style={{ marginBottom: avoid.length ? 6 : 10 }}>
         {avoidOpts.map(slug => <button key={slug} className={'chip' + (avoid.includes(slug) ? ' on' : '')} onClick={() => toggle(avoid, setAvoid, slug)}>{t(MUSCLE_NAME[slug])}</button>)}
       </div>
+      {avoid.length > 0 && <div className="dim small" style={{ marginBottom: 10, lineHeight: 1.4 }}>{t('Sharp or joint pain isn’t normal soreness — stop and get it checked. This isn’t medical advice.')}</div>}
     </>}
     <div className="list">
       {subs.map(e => <div key={e.id} className="item" onClick={() => onPick(e)}>

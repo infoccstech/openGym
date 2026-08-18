@@ -601,5 +601,6 @@ export default {
   'that plan has no routines': 'ese plan no tiene rutinas',
   'that plan has no exercises': 'ese plan no tiene ejercicios',
   'Back up to cloud': 'Respaldar en la nube',
-  'Send it to Google Drive, Files, email…': 'Envíalo a Google Drive, Archivos, correo…'
+  'Send it to Google Drive, Files, email…': 'Envíalo a Google Drive, Archivos, correo…',
+  'Sharp or joint pain isn’t normal soreness — stop and get it checked. This isn’t medical advice.': 'Un dolor agudo o en una articulación no es una agujeta normal: detente y hazlo revisar. Esto no es consejo médico.'
 }
