@@ -1,5 +1,42 @@
 # Changelog
 
+## Unreleased
+
+Smarter planning that keeps everything on your device: swap an exercise when a machine is taken or
+a joint hurts, get a full routine from any AI without a key or a server, and reach a cloud backup
+in one tap.
+
+### Swap an exercise for an alternative
+
+- 🔀 **A "Swap exercise" button in a running workout, and "Find alternatives" on any exercise.** It
+  offers other lifts that train the same primary muscle, filtered by the equipment you have and —
+  when something is sore — a muscle to spare. The ranking is a pure, offline cosine similarity over
+  the same muscle map the body diagram uses: no model, no network, nothing sent anywhere. Swapping
+  mid-session keeps the slot's superset link and reseeds its sets from the new exercise's history.
+- A short, non-alarming note appears once you pick a sore muscle: sharp or joint pain isn't normal
+  soreness — stop and get it checked; this isn't medical advice.
+
+### Build a routine with any AI — bring your own AI
+
+- 🧠 **openGym never calls a model — it hands you a prompt and reads the answer back.** "Get an AI
+  prompt" copies (or shares) a self-contained brief with a strict JSON contract and blanks for your
+  goal, days and injuries; paste any chatbot's reply into "Import from AI" and it lands as new
+  routines. Exercise names resolve through the same matcher the FitNotes/Strong/Hevy importers use,
+  unknowns become your own exercises rather than being dropped, and the weekly schedule maps day
+  names to the new routines. Nothing you already have is overwritten.
+
+### Cloud backup, one tap on mobile
+
+- ☁️ **"Back up to cloud" on the standalone app** exports your data straight into the OS share
+  sheet, where Google Drive, Files and email are all targets — no account to connect, no OAuth. The
+  optional next step (connect a Google account for automatic Drive upload) is spec'd in
+  [docs/AI_FEATURES.md](docs/AI_FEATURES.md).
+
+### Under the hood
+
+- New pure modules `lib/substitute.js` and `lib/ai-plan.js` with 22 tests; every new UI string is
+  translated into the full set of 12 languages.
+
 ## v1.2.6 — 2026-08-07
 
 The muscle map learned to answer a second question — not just where the volume went, but what is
