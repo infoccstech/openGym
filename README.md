@@ -71,6 +71,7 @@ as a home-screen app, passkey sign-in, offline support, sync across your phone a
 - 🏃 **Cardio** — log time + speed, not just weight × reps
 - 📤 **Share a plan** — send someone your routines and week schedule as a small file (no workouts, no weigh-ins), or print it as a clean PDF. Importing merges, so their plan is never overwritten
 - 🔧 **Filter by equipment** — narrow the library to what you actually own; the options adapt to what you've picked, so every combination on screen has results behind it
+- 🔀 **Swap for an alternative** — machine taken, or a joint's sore? Every exercise offers alternatives that train the same muscle, filtered by the equipment you have and the muscle you want to spare. Ranked offline from the muscle map — no model, no network
 - ✨ **Your own exercises** — a name and a body part is enough; they behave like built-in ones everywhere, with an optional description instead of an animation
 - 🟩 **Activity heatmap** — a GitHub-style year view, shaded by time spent training
 - 💪 **Muscle map** — a front-and-back body diagram shaded by how much work each muscle got, over a week, a month or all time. It names the muscles you *haven't* trained in that period, previews what a routine hits while you build it, and shows what you just trained when you finish. Male or female figure, your pick
@@ -82,6 +83,7 @@ as a home-screen app, passkey sign-in, offline support, sync across your phone a
 - 📥 **Bring your history with you** — import from **FitNotes** (Android and iOS), **Strong** and **Hevy**, or body weight straight out of an **Apple Health** export. Exercise names are matched against the library and anything unrecognised becomes one of your own exercises, so nothing in the file is dropped
 - 📦 **Yours to keep** — one-tap JSON export/import, guest mode, **no telemetry**
 - 🤖 **Ask an AI about your training** (optional) — an [MCP server](mcp/README.md) lets a client like Claude Desktop or Cursor read your history in your own words: *"what did I bench last week?"*. Read-only, spawned locally by the client, nothing leaves your box. Not in the Docker build — if you don't use an AI assistant, it isn't there
+- 🧠 **Build a routine with any AI** — copy a ready-made prompt into ChatGPT, Claude or any chatbot, paste its answer back, and openGym imports it as new routines (names matched to the library, unknowns kept as your own). You run the AI yourself — no key, no server, nothing leaves your device. See [docs/AI_FEATURES.md](docs/AI_FEATURES.md)
 - 📱 **Standalone Android app** — the whole tracker as a sideloadable APK: no account, no server, data on the phone, native workout reminders ([download](https://opengym.duarte-santos.ch))
 
 ## Quick start (self-host)

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from './store/useStore.js'
 import { useUI } from './store/useUI.js'
 import { EXDB, EXIDX, BODYPARTS, isCardio, isBodyweightEq, allExercises, equipmentOf, smOf } from './lib/exercises.js'
@@ -336,24 +336,29 @@ function Substitute({ ex, onPick }) {
   const [avoid, setAvoid] = useState([])     // [] = spare nothing
   const pool = allExercises(st)
 
+  // The two option rows depend only on the exercise, not on the current filters, so they are
+  // memoised — toggling a chip then re-ranks the results without re-deriving the chips (which
+  // would rescan the catalogue) on a low-end phone.
+  //
   // Equipment worth offering: what the unconstrained alternatives actually use, most common
-  // first — so every chip has results behind it, like the Library's equipment row. Computed
-  // ignoring the current equipment filter so toggling one never makes the others vanish.
-  const eqOpts = equipmentOf(substitutesFor(ex, { pool, limit: 300 }))
+  // first — so every chip has results behind it, like the Library's equipment row.
+  const eqOpts = useMemo(() => equipmentOf(substitutesFor(ex, { pool, limit: 300 })), [ex, pool])
   // Muscles worth sparing: the *supporting* muscles this movement trains. Its primary can't be
   // spared — every real alternative has to keep hitting it — so a sore-shoulder swap for a
   // press drops front-delt work, a sore-elbow swap for a row drops the biceps, and so on.
-  const primary = primaryMuscle(ex)
-  const avoidOpts = Object.entries(musclesOf(ex))
-    .filter(([slug, w]) => slug !== primary && w > 0 && MUSCLE_NAME[slug])
-    .map(([slug]) => slug)
+  const avoidOpts = useMemo(() => {
+    const primary = primaryMuscle(ex)
+    return Object.entries(musclesOf(ex))
+      .filter(([slug, w]) => slug !== primary && w > 0 && MUSCLE_NAME[slug])
+      .map(([slug]) => slug)
+  }, [ex])
 
-  const subs = substitutesFor(ex, {
+  const subs = useMemo(() => substitutesFor(ex, {
     pool,
     equipment: equip.length ? equip : undefined,
     avoid: avoid.length ? avoid : undefined,
     limit: 40,
-  })
+  }), [ex, pool, equip, avoid])
   const toggle = (arr, set, v) => set(arr.includes(v) ? arr.filter(x => x !== v) : [...arr, v])
 
   return <>
