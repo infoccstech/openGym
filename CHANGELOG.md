@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.3.0 — 2026-08-18
 
 Smarter planning that keeps everything on your device: swap an exercise when a machine is taken or
 a joint hurts, get a full routine from any AI without a key or a server, and reach a cloud backup
@@ -36,6 +36,9 @@ in one tap.
 
 - New pure modules `lib/substitute.js` and `lib/ai-plan.js` with 22 tests; every new UI string is
   translated into the full set of 12 languages.
+- 📦 **An "Android APK" CI workflow** builds an installable debug APK on every push to main and on
+  demand, uploaded as a downloadable artifact — so you can put the latest build on your phone
+  without a local Android toolchain.
 
 ## v1.2.6 — 2026-08-07
 
