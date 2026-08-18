@@ -115,9 +115,11 @@ mobile app is the install-and-done flavor.
 
 - **Android:** [**download the APK**](https://opengym.duarte-santos.ch) and sideload it —
   openGym is deliberately not on the Play Store. Or build it yourself: **[docs/MOBILE.md](docs/MOBILE.md)**.
-  To install a build of *this* repo's latest code without Android Studio, run the
-  [**Android APK**](../../actions/workflows/android-apk.yml) workflow (Actions tab → *Run workflow*),
-  then download the `openGym-debug-apk` artifact from the finished run and open it on your phone.
+  To install a build of *this* repo's latest code without Android Studio, grab it from
+  [**Releases**](../../releases/latest) — `openGym-debug.apk` is a direct download that works
+  straight from the phone. Every push to `main` rebuilds it via the
+  [**Android APK**](../../actions/workflows/android-apk.yml) workflow (which also attaches the APK
+  to each run as an artifact).
 - **iPhone:** Apple doesn't allow installing apps outside the App Store, so there is no iOS
   download. Self-host and add it to your home screen from Safari (it's a full PWA), or build
   the native app onto your own device from Xcode — see **[docs/MOBILE.md](docs/MOBILE.md)**.

@@ -1,9 +1,11 @@
-# Builds an installable Android APK you can download without Android Studio.
+# Builds an installable Android APK and publishes it two ways.
 #
-#   Actions tab → "Android APK" → latest run → download the "openGym-debug-apk" artifact,
-#   copy it to your phone and open it (allow installs from your browser/files app once).
+#   1. A rolling GitHub Release — the easy one, a permanent phone-friendly link:
+#        https://github.com/<owner>/openGym/releases/latest
+#        https://github.com/<owner>/openGym/releases/download/apk-latest/openGym-debug.apk
+#   2. A workflow artifact on the run (openGym-debug-apk), for anyone signed in.
 #
-# It builds on every push to main, and on demand from the Actions tab (Run workflow). The APK
+# It builds on every push to main and on demand from the Actions tab (Run workflow). The APK
 # is debug-signed — fine for sideloading onto your own phone; it is not a Play Store release.
 name: Android APK
 
@@ -16,7 +18,7 @@ on:
       - '.github/workflows/android-apk.yml'
 
 permissions:
-  contents: read
+  contents: write   # needed to publish the APK to a Release
 
 concurrency:
   group: apk-${{ github.ref }}
@@ -46,8 +48,24 @@ jobs:
         working-directory: frontend
       - run: ./gradlew assembleDebug --no-daemon
         working-directory: frontend/android
+      # A stable filename gives the Release a stable download URL across builds.
+      - run: cp app/build/outputs/apk/debug/app-debug.apk openGym-debug.apk
+        working-directory: frontend/android
       - uses: actions/upload-artifact@v4
         with:
           name: openGym-debug-apk
-          path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
+          path: frontend/android/openGym-debug.apk
           if-no-files-found: error
+      # Replace the single rolling "apk-latest" release so the download link always points at
+      # the newest build. Skipped on manual runs from a non-main branch.
+      - name: Publish APK to the rolling Release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete apk-latest --yes --cleanup-tag || true
+          gh release create apk-latest openGym-debug.apk \
+            --title "openGym APK (latest build)" \
+            --notes "Debug-signed APK built from the latest main. Download openGym-debug.apk below and sideload it onto your phone (allow installs from unknown sources once). Rebuilt on every push to main, so this release always holds the newest build." \
+            --latest
+        working-directory: frontend/android
