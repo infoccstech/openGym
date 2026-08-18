@@ -599,5 +599,7 @@ export default {
   'couldn’t find a plan in that text': 'no se encontró un plan en ese texto',
   'that isn’t valid JSON — copy the AI’s whole reply': 'eso no es JSON válido: copia la respuesta completa de la IA',
   'that plan has no routines': 'ese plan no tiene rutinas',
-  'that plan has no exercises': 'ese plan no tiene ejercicios'
+  'that plan has no exercises': 'ese plan no tiene ejercicios',
+  'Back up to cloud': 'Respaldar en la nube',
+  'Send it to Google Drive, Files, email…': 'Envíalo a Google Drive, Archivos, correo…'
 }
