@@ -66,3 +66,10 @@ export async function shareExport(json, filename) {
   const w = await Filesystem.writeFile({ path: filename, directory: Directory.Cache, data: json, encoding: Encoding.UTF8 })
   await Share.share({ title: filename, url: w.uri })
 }
+
+// Share plain text through the OS share sheet — used to hand the AI-plan prompt to whatever
+// chat app the user has (ChatGPT, Claude, a browser, notes…).
+export async function shareText(text) {
+  const { Share } = await import('@capacitor/share')
+  await Share.share({ text })
+}
