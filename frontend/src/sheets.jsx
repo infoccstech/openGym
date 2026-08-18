@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from './store/useStore.js'
 import { useUI } from './store/useUI.js'
 import { EXDB, EXIDX, BODYPARTS, isCardio, isBodyweightEq, allExercises, equipmentOf, smOf } from './lib/exercises.js'
@@ -14,18 +14,36 @@ import Icon from './components/Icon.jsx'
 import { Button, Slider, Switch, Segmented, SelectRow, Row } from './components/ui.jsx'
 import { glyphOf, GLYPH_GROUPS, DEFAULT_GLYPH } from './lib/glyphs.js'
 import BodyMap from './components/BodyMap.jsx'
-import { loadOfWorkouts } from './lib/muscles.js'
+import { loadOfWorkouts, musclesOf, MUSCLE_NAME } from './lib/muscles.js'
+import { substitutesFor, primaryMuscle } from './lib/substitute.js'
 import { parseImport, mergeImport } from './lib/import-csv.js'
 import { buildPlanBundle, parsePlan, mergePlan, printPlan } from './lib/plan-share.js'
+import { buildAiPrompt, parseAiPlan } from './lib/ai-plan.js'
 import { estimate1RM, best1RM, is1RMRecord, REP_CAP } from './lib/onerm.js'
 import { nextPrescription, applyPrescription, policyFor, defaultIncrement, POLICIES_FOR, POLICY_NAME, POLICY_DESC, MAX_BW_SETS } from './lib/progression.js'
-import { MOBILE, shareExport } from './lib/mobile.js'
+import { MOBILE, shareExport, shareText } from './lib/mobile.js'
 
 const S = () => useStore.getState().S
 const update = (...a) => useStore.getState().update(...a)
 const ui = () => useUI.getState()
 const toast = m => ui().toast(m)
 const snd = () => S().sound
+
+// Copy text to the clipboard, with a hidden-textarea fallback for the WebView (Capacitor,
+// older browsers) where the async Clipboard API isn't granted. Returns whether it worked.
+async function copyText(text) {
+  try { if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(text); return true } } catch (e) { /* fall through */ }
+  try {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0'
+    document.body.appendChild(ta)
+    ta.focus(); ta.select()
+    const ok = document.execCommand('copy')
+    ta.remove()
+    return ok
+  } catch (e) { return false }
+}
 
 /* ============================ custom confirm dialog ============================ */
 function ConfirmDialog({ title, message, confirmText, cancelText, danger, onConfirm, close }) {
@@ -296,6 +314,7 @@ function ExerciseDetail({ ex, close }) {
     {ex.desc && <div className="exnote">{ex.desc}</div>}
     {best > 0 && <div className="small row" style={{ marginBottom: 6, gap: 5 }}><Icon name="trophy" style={{ fontSize: 14, color: 'var(--yellow)' }} />{t('Best:')} <b className="accent">{fmtNum(best)} {st.unit}</b>{last ? ` · ${t('last')} ${fmtDate(last.d)}: ${last.sets.map(s => setLabel(ex.id, s, last.target)).join(', ')}` : ''}</div>}
     <Button variant="primary" icon="plus" style={{ margin: '10px 0 4px' }} onClick={() => addToRoutineSheet(ex)}>{t('Add to my plan')}</Button>
+    {!isCardio(ex) && <Button icon="shuffle" style={{ marginBottom: 4 }} onClick={() => { close(); substituteSheet(ex, picked => exerciseDetailSheet(picked)) }}>{t('Find alternatives')}</Button>}
     {ex.custom && <div className="row" style={{ gap: 8, marginTop: 8 }}>
       <Button icon="pencil" style={{ flex: 1 }} onClick={() => { close(); customExSheet(ex) }}>{t('Edit')}</Button>
       <Button variant="danger" icon="trash" style={{ flex: 1 }} onClick={() => deleteCustomEx(ex, close)}>{t('Delete')}</Button>
@@ -305,6 +324,72 @@ function ExerciseDetail({ ex, close }) {
   </>
 }
 export const exerciseDetailSheet = ex => ui().openSheet(close => <ExerciseDetail ex={ex} close={close} />)
+
+/* ============================ alternatives / swap ============================ */
+// Alternatives for one exercise — for when a machine is taken or you don't own it, or a
+// muscle is sore and you want to train around it. The ranking is pure and offline
+// (lib/substitute.js): same target muscle, ranked by muscle-map overlap — no model, no
+// network. Two knobs: the equipment you can use right now, and a muscle to spare.
+function Substitute({ ex, onPick }) {
+  const st = useStore(s => s.S)
+  const [equip, setEquip] = useState([])     // [] = any equipment
+  const [avoid, setAvoid] = useState([])     // [] = spare nothing
+  const pool = allExercises(st)
+
+  // The two option rows depend only on the exercise, not on the current filters, so they are
+  // memoised — toggling a chip then re-ranks the results without re-deriving the chips (which
+  // would rescan the catalogue) on a low-end phone.
+  //
+  // Equipment worth offering: what the unconstrained alternatives actually use, most common
+  // first — so every chip has results behind it, like the Library's equipment row.
+  const eqOpts = useMemo(() => equipmentOf(substitutesFor(ex, { pool, limit: 300 })), [ex, pool])
+  // Muscles worth sparing: the *supporting* muscles this movement trains. Its primary can't be
+  // spared — every real alternative has to keep hitting it — so a sore-shoulder swap for a
+  // press drops front-delt work, a sore-elbow swap for a row drops the biceps, and so on.
+  const avoidOpts = useMemo(() => {
+    const primary = primaryMuscle(ex)
+    return Object.entries(musclesOf(ex))
+      .filter(([slug, w]) => slug !== primary && w > 0 && MUSCLE_NAME[slug])
+      .map(([slug]) => slug)
+  }, [ex])
+
+  const subs = useMemo(() => substitutesFor(ex, {
+    pool,
+    equipment: equip.length ? equip : undefined,
+    avoid: avoid.length ? avoid : undefined,
+    limit: 40,
+  }), [ex, pool, equip, avoid])
+  const toggle = (arr, set, v) => set(arr.includes(v) ? arr.filter(x => x !== v) : [...arr, v])
+
+  return <>
+    <h3 className="capitalize">{t('Alternatives for “{0}”', ex.n)}</h3>
+    <div className="muted small" style={{ marginBottom: 12 }}>{t('Same muscle, other options — pick what your gym, and your body, allow today.')}</div>
+    {eqOpts.length > 0 && <>
+      <h4 className="sec">{t('Equipment you can use')}</h4>
+      <div className="chips" style={{ marginBottom: 10 }}>
+        <button className={'chip nocap' + (!equip.length ? ' on' : '')} onClick={() => setEquip([])}>{t('Any equipment')}</button>
+        {eqOpts.map(x => <button key={x} className={'chip' + (equip.includes(x) ? ' on' : '')} onClick={() => toggle(equip, setEquip, x)}>{t(x)}</button>)}
+      </div>
+    </>}
+    {avoidOpts.length > 0 && <>
+      <h4 className="sec">{t('Sore muscle? Leave it out')}</h4>
+      <div className="chips" style={{ marginBottom: avoid.length ? 6 : 10 }}>
+        {avoidOpts.map(slug => <button key={slug} className={'chip' + (avoid.includes(slug) ? ' on' : '')} onClick={() => toggle(avoid, setAvoid, slug)}>{t(MUSCLE_NAME[slug])}</button>)}
+      </div>
+      {avoid.length > 0 && <div className="dim small" style={{ marginBottom: 10, lineHeight: 1.4 }}>{t('Sharp or joint pain isn’t normal soreness — stop and get it checked. This isn’t medical advice.')}</div>}
+    </>}
+    <div className="list">
+      {subs.map(e => <div key={e.id} className="item" onClick={() => onPick(e)}>
+        <Thumb ex={e} />
+        <div className="grow"><div className="tt capitalize">{e.n}</div><div className="ss capitalize">{t(e.tg || e.bp)} · {t(e.eq)}</div></div>
+        <Icon name="chevronRight" className="chev" />
+      </div>)}
+      {!subs.length && <div className="empty">{t('No alternatives match those filters — loosen them a little.')}</div>}
+    </div>
+  </>
+}
+// onPick receives the chosen exercise; the sheet closes first so the caller can open its own.
+export const substituteSheet = (ex, onPick) => ui().openSheet(close => <Substitute ex={ex} onPick={e => { close(); onPick(e) }} />)
 
 /* ============================ add to routine ============================ */
 function AddToRoutine({ ex, close }) {
@@ -664,8 +749,50 @@ function PlanTools({ close }) {
     <h4 className="sec">{t('Got a plan from a friend?')}</h4>
     <Button variant="ghost" icon="folder" onClick={() => fileRef.current?.click()}>{t('Import a plan file')}</Button>
     <input ref={fileRef} type="file" accept="application/json,.json" onChange={pickFile} hidden />
+
+    <h4 className="sec">{t('Build a routine with AI')}</h4>
+    <div className="dim small" style={{ margin: '0 2px 10px', lineHeight: 1.4 }}>{t('Get a prompt for ChatGPT, Claude or any AI, then paste its answer back to import the plan. You run the AI yourself — nothing leaves your device.')}</div>
+    <Button variant="tinted" icon="sparkles" onClick={() => { close(); aiPromptSheet() }}>{t('Get an AI prompt')}</Button>
+    <div style={{ height: 8 }} />
+    <Button variant="ghost" icon="clipboard" onClick={() => { close(); aiImportSheet() }}>{t('Import from AI')}</Button>
   </>
 }
+
+/* ============================ AI plan (bring your own AI) ============================ */
+function AiPrompt({ close }) {
+  const st = useStore(s => s.S)
+  const prompt = buildAiPrompt(st)
+  const copy = async () => toast(await copyText(prompt) ? t('Prompt copied') : t('Couldn’t copy — select the text and copy it'))
+  return <>
+    <h3>{t('AI plan prompt')}</h3>
+    <div className="muted small" style={{ marginBottom: 10, lineHeight: 1.4 }}>{t('Copy this into any AI and edit the “My details” lines. It replies with a plan — then come back and use “Import from AI”.')}</div>
+    <textarea className="input" readOnly rows={11} value={prompt} onFocus={e => e.target.select()} style={{ fontSize: 12, lineHeight: 1.45, resize: 'vertical', fontFamily: 'inherit' }} />
+    <div style={{ height: 10 }} />
+    <Button variant="primary" icon="clipboard" onClick={copy}>{t('Copy prompt')}</Button>
+    {MOBILE && <><div style={{ height: 8 }} /><Button icon="upload" onClick={() => shareText(prompt).catch(() => {})}>{t('Share…')}</Button></>}
+    <div style={{ height: 8 }} />
+    <Button variant="ghost" className="dim" onClick={close}>{t('Done')}</Button>
+  </>
+}
+export const aiPromptSheet = () => ui().openSheet(close => <AiPrompt close={close} />)
+
+function AiImport({ close }) {
+  const [text, setText] = useState('')
+  const read = () => {
+    try { const bundle = parseAiPlan(text); close(); planImportSheet(bundle) }
+    catch (e) { toast(t('Couldn’t read that: {0}', e.message)) }
+  }
+  return <>
+    <h3>{t('Import from AI')}</h3>
+    <div className="muted small" style={{ marginBottom: 10, lineHeight: 1.4 }}>{t('Paste the AI’s reply — the JSON plan from the prompt. Extra text around it is fine.')}</div>
+    <textarea className="input" rows={9} value={text} onChange={e => setText(e.target.value)} placeholder={t('Paste the AI’s answer…')} style={{ fontSize: 12, lineHeight: 1.45, resize: 'vertical', fontFamily: 'inherit' }} />
+    <div style={{ height: 10 }} />
+    <Button variant="primary" onClick={read} disabled={!text.trim()}>{t('Read plan')}</Button>
+    <div style={{ height: 8 }} />
+    <Button variant="ghost" className="dim" onClick={close}>{t('Cancel')}</Button>
+  </>
+}
+export const aiImportSheet = () => ui().openSheet(close => <AiImport close={close} />)
 
 export const planImportSheet = bundle => ui().openSheet(close => <PlanImport bundle={bundle} close={close} />)
 
@@ -691,6 +818,11 @@ function PlanImport({ bundle, close }) {
       {t(bundle.dropped === 1
         ? '{0} exercise in the file isn’t in your library and was left out.'
         : '{0} exercises in the file aren’t in your library and were left out.', bundle.dropped)}
+    </div>}
+    {bundle.unmatched?.length > 0 && <div className="small dim" style={{ marginBottom: 14, lineHeight: 1.4 }}>
+      {t(bundle.unmatched.length === 1
+        ? '{0} exercise wasn’t in the library — added as your own.'
+        : '{0} exercises weren’t in the library — added as your own.', bundle.unmatched.length)}
     </div>}
     {bundle.scheduledDays > 0 && <div className="row between" style={{ padding: '10px 2px', borderTop: '1px solid var(--sep)', borderBottom: '1px solid var(--sep)', marginBottom: 16, gap: 12 }}>
       <div><div className="tt" style={{ fontSize: 15 }}>{t('Use this weekly schedule')}</div><div className="small dim">{t('Replaces your current Mon–Sun assignments.')}</div></div>
