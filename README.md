@@ -81,7 +81,7 @@ as a home-screen app, passkey sign-in, offline support, sync across your phone a
 - 🎨 **Designed, not assembled** — light/dark themes and 8 accent colors saved to your profile, over a hand-drawn icon set instead of emoji, so it looks the same on every phone
 - 🌍 **12 languages** — full UI translation (EN, DE, ES, FR, IT, PT, PL, TR, RU, ZH, KO, HI); exercise instructions localized in 10 of them, loaded on demand so the app stays fast
 - 📥 **Bring your history with you** — import from **FitNotes** (Android and iOS), **Strong** and **Hevy**, or body weight straight out of an **Apple Health** export. Exercise names are matched against the library and anything unrecognised becomes one of your own exercises, so nothing in the file is dropped
-- 📦 **Yours to keep** — one-tap JSON export/import, guest mode, **no telemetry**
+- 📦 **Yours to keep** — one-tap JSON export/import (on the mobile app, "Back up to cloud" hands the file straight to your share sheet — Google Drive, Files, email), guest mode, **no telemetry**
 - 🤖 **Ask an AI about your training** (optional) — an [MCP server](mcp/README.md) lets a client like Claude Desktop or Cursor read your history in your own words: *"what did I bench last week?"*. Read-only, spawned locally by the client, nothing leaves your box. Not in the Docker build — if you don't use an AI assistant, it isn't there
 - 🧠 **Build a routine with any AI** — copy a ready-made prompt into ChatGPT, Claude or any chatbot, paste its answer back, and openGym imports it as new routines (names matched to the library, unknowns kept as your own). You run the AI yourself — no key, no server, nothing leaves your device. See [docs/AI_FEATURES.md](docs/AI_FEATURES.md)
 - 📱 **Standalone Android app** — the whole tracker as a sideloadable APK: no account, no server, data on the phone, native workout reminders ([download](https://opengym.duarte-santos.ch))
@@ -115,6 +115,9 @@ mobile app is the install-and-done flavor.
 
 - **Android:** [**download the APK**](https://opengym.duarte-santos.ch) and sideload it —
   openGym is deliberately not on the Play Store. Or build it yourself: **[docs/MOBILE.md](docs/MOBILE.md)**.
+  To install a build of *this* repo's latest code without Android Studio, run the
+  [**Android APK**](../../actions/workflows/android-apk.yml) workflow (Actions tab → *Run workflow*),
+  then download the `openGym-debug-apk` artifact from the finished run and open it on your phone.
 - **iPhone:** Apple doesn't allow installing apps outside the App Store, so there is no iOS
   download. Self-host and add it to your home screen from Safari (it's a full PWA), or build
   the native app onto your own device from Xcode — see **[docs/MOBILE.md](docs/MOBILE.md)**.
@@ -168,6 +171,9 @@ Rough, community-driven — ideas and PRs welcome:
 - [x] Standalone mobile app — Android APK to sideload ([download](https://opengym.duarte-santos.ch)); on iOS as a self-hosted PWA (no store listings planned)
 - [x] Automatic progression programs (linear, Greyskull LP, double progression) with stalls and deloads
 - [x] Estimated 1RM per exercise
+- [x] Exercise alternatives — swap for what your gym (and your body) allow, ranked offline from the muscle map
+- [x] Build a routine with any AI — copy a prompt out, paste the plan back in (no key, no server)
+- [ ] Auto-backup to Google Drive (connect a Google account) — one-tap share-sheet backup ships today; automatic upload is spec'd in [docs/AI_FEATURES.md](docs/AI_FEATURES.md)
 - [ ] Percentage / training-max programming (5/3/1-style) on top of the progression engine
 - [ ] More starter plans (upper/lower, full-body, 5×5)
 - [x] Importers from FitNotes / Strong / Hevy (including the RPE they record), and body weight from Apple Health
