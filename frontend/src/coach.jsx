@@ -332,7 +332,10 @@ function MyCoach({ close }) {
     if (!res.valid) { toast(t('Not verified: {0}', res.reason || 'invalid')); return }
     try {
       const parsed = parsePlan(res.plan)
-      update(s => mergePlan(s, parsed, { schedule: parsed.scheduledDays > 0 }))
+      // Stamp the imported routines as this coach's, read-only: verified plans render as normal
+      // routines the client can train and inspect, but not edit (an edit would break the signature).
+      const coach = { code: my.code, name: my.name || '' }
+      update(s => mergePlan(s, parsed, { schedule: parsed.scheduledDays > 0, coach }))
       close(); toast(t('Verified plan from {0} imported', my.name || my.code))
     } catch (e) { toast(t('Import failed: {0}', e.message)) }
   }
