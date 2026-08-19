@@ -106,7 +106,7 @@ export function parsePlan(raw) {
  *  - schedule: optional; when on, the shared week REPLACES yours (days the shared plan
  *    leaves empty become rest days — a half-overwritten week would silently mix two plans)
  */
-export function mergePlan(s, bundle, { schedule } = {}) {
+export function mergePlan(s, bundle, { schedule, coach } = {}) {
   s.customEx = s.customEx || []
   const exIdMap = {}
   bundle.customEx.forEach(c => {
@@ -125,6 +125,10 @@ export function mergePlan(s, bundle, { schedule } = {}) {
       name: r.name || t('Shared routine'),
       emoji: r.emoji,
       ...(r.prog ? { prog: r.prog } : {}),
+      // A verified coach plan is stamped read-only: the client trains it but can't edit it in
+      // the app (any edit would break the signature anyway). Friend imports pass no coach and
+      // stay fully editable.
+      ...(coach ? { coach, locked: true } : {}),
       ex: (r.ex || []).map(e => ({ ...e, id: exIdMap[e.id] || e.id }))
     })
   })

@@ -6,7 +6,7 @@ import { uid } from '../lib/format.js'
 import { t } from '../lib/i18n.js'
 import { supersetUnits, cleanupSg, exLine } from '../lib/history.js'
 import { Thumb } from '../components/Media.jsx'
-import { glyphPicker, exercisePicker, exConfigSheet, confirmSheet } from '../sheets.jsx'
+import { glyphPicker, exercisePicker, exConfigSheet, confirmSheet, exerciseDetailSheet } from '../sheets.jsx'
 import Icon from '../components/Icon.jsx'
 import { glyphOf } from '../lib/glyphs.js'
 import { Button, SelectRow } from '../components/ui.jsx'
@@ -22,6 +22,12 @@ export default function RoutineEdit() {
   const r = S.routines.find(x => x.id === id)
   useEffect(() => { if (!r) nav('/plan') }, [!!r])
   if (!r) return null
+
+  // A verified coach plan is stamped read-only. The client trains it and can inspect every
+  // exercise, but can't rename, retune, reorder or extend it — an edit would break the coach's
+  // signature. Removing the whole plan is still allowed: it's the client's own device.
+  const locked = !!r.locked
+  const coachName = r.coach?.name || r.coach?.code || t('your coach')
 
   const edit = fn => update(s => { fn(s.routines.find(x => x.id === id).ex) })
   const move = (i, dir) => edit(ex => { const j = i + dir; if (j < 0 || j >= ex.length) return;[ex[i], ex[j]] = [ex[j], ex[i]]; cleanupSg(ex) })
@@ -41,20 +47,39 @@ export default function RoutineEdit() {
     <div className="hdr">
       <button className="iconbtn" onClick={() => nav('/plan')} aria-label={t('Plan')}><Icon name="chevronLeft" /></button>
       <div style={{ flex: 1, margin: '0 12px' }}>
-        <input className="input" defaultValue={r.name} style={{ fontWeight: 600, fontSize: 20, letterSpacing: '-.021em' }}
-          onChange={e => update(s => { s.routines.find(x => x.id === id).name = e.target.value.trim() || t('Routine') })} />
+        {locked
+          ? <div className="capitalize" style={{ fontWeight: 600, fontSize: 20, letterSpacing: '-.021em', padding: '4px 0' }}>{r.name}</div>
+          : <input className="input" defaultValue={r.name} style={{ fontWeight: 600, fontSize: 20, letterSpacing: '-.021em' }}
+              onChange={e => update(s => { s.routines.find(x => x.id === id).name = e.target.value.trim() || t('Routine') })} />}
       </div>
-      <button className="iconbtn" aria-label={t('Pick an icon')} onClick={() => glyphPicker(r.emoji, g => update(s => { s.routines.find(x => x.id === id).emoji = g }))}><Icon name={glyphOf(r.emoji)} /></button>
+      {locked
+        ? <span className="iconbtn" aria-hidden="true" style={{ opacity: .85 }}><Icon name={glyphOf(r.emoji)} /></span>
+        : <button className="iconbtn" aria-label={t('Pick an icon')} onClick={() => glyphPicker(r.emoji, g => update(s => { s.routines.find(x => x.id === id).emoji = g }))}><Icon name={glyphOf(r.emoji)} /></button>}
     </div>
 
-    <div className="sect-b" style={{ marginBottom: 16 }}>
-      <SelectRow icon="chartLine" title={t('Progression')} sheetTitle={t('Progression')}
-        value={r.prog || 'linear'} onChange={v => update(s => { s.routines.find(x => x.id === id).prog = v })}
-        options={POLICIES_FOR.reps.map(p => ({ value: p, label: t(POLICY_NAME[p]), subtitle: t(POLICY_DESC[p]) }))} />
-    </div>
-    <div className="small dim" style={{ margin: '-10px 2px 16px' }}>
-      {t('Applies to every exercise in this routine that does not set its own rule.')}
-    </div>
+    {locked && <div className="card row" style={{ gap: 10, alignItems: 'flex-start', marginBottom: 16, borderColor: 'var(--acc-line)' }}>
+      <Icon name="lock" style={{ fontSize: 18, color: 'var(--acc)', flex: 'none', marginTop: 1 }} />
+      <div>
+        <div style={{ fontWeight: 600 }}>{t('Plan from your coach')}</div>
+        <div className="small dim" style={{ marginTop: 2, lineHeight: 1.4 }}>{t('Read-only so it stays exactly as {0} prescribed it.', coachName)}</div>
+      </div>
+    </div>}
+
+    {locked
+      ? (r.prog && r.prog !== 'linear' ? <div className="sect-b row between" style={{ marginBottom: 16 }}>
+          <span className="row" style={{ gap: 8 }}><Icon name="chartLine" /><span>{t('Progression')}</span></span>
+          <span className="dim">{t(POLICY_NAME[r.prog])}</span>
+        </div> : null)
+      : <>
+          <div className="sect-b" style={{ marginBottom: 16 }}>
+            <SelectRow icon="chartLine" title={t('Progression')} sheetTitle={t('Progression')}
+              value={r.prog || 'linear'} onChange={v => update(s => { s.routines.find(x => x.id === id).prog = v })}
+              options={POLICIES_FOR.reps.map(p => ({ value: p, label: t(POLICY_NAME[p]), subtitle: t(POLICY_DESC[p]) }))} />
+          </div>
+          <div className="small dim" style={{ margin: '-10px 2px 16px' }}>
+            {t('Applies to every exercise in this routine that does not set its own rule.')}
+          </div>
+        </>}
 
     {r.ex.length ? <div className="list">{r.ex.map((e, i) => {
       // An unresolvable id is shown rather than skipped — hiding it left an entry you
@@ -64,17 +89,20 @@ export default function RoutineEdit() {
       return <div key={i}>
         {unitFirst.has(i) && <div className="ss-label"><Icon name="link" />{t('Superset')}</div>}
         <div className={'item' + (inSS.has(i) ? ' in-ss' : '')} onClick={() => {
+          if (locked) { exerciseDetailSheet(ex); return }
           exConfigSheet(ex, e, cfg => edit(x => { x[i] = { id: x[i].id, sg: x[i].sg, ...cfg } }), () => edit(x => { x.splice(i, 1); cleanupSg(x) }), r)
         }}>
           <Thumb ex={ex} />
           <div className="grow"><div className="tt capitalize">{ex.n}</div><div className="ss">{exLine(e, S.unit)}</div></div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 'none', alignItems: 'center' }}>
-            {i > 0 && <button className={'iconbtn' + (linkedPrev ? ' on-ss' : '')} title={t('Superset with exercise above')} style={{ width: 32, height: 28, borderRadius: 8, fontSize: 15 }} onClick={ev => { ev.stopPropagation(); toggleLink(i) }}><Icon name="link" /></button>}
-            <div style={{ display: 'flex', gap: 2 }}>
-              <button className="iconbtn" aria-label="Move up" style={{ width: 28, height: 24, borderRadius: 7, fontSize: 12 }} onClick={ev => { ev.stopPropagation(); move(i, -1) }}><Icon name="chevronUp" /></button>
-              <button className="iconbtn" aria-label="Move down" style={{ width: 28, height: 24, borderRadius: 7, fontSize: 12 }} onClick={ev => { ev.stopPropagation(); move(i, 1) }}><Icon name="chevronDown" /></button>
-            </div>
-          </div>
+          {locked
+            ? <Icon name="chevronRight" style={{ flex: 'none', color: 'var(--label-3)' }} />
+            : <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 'none', alignItems: 'center' }}>
+                {i > 0 && <button className={'iconbtn' + (linkedPrev ? ' on-ss' : '')} title={t('Superset with exercise above')} style={{ width: 32, height: 28, borderRadius: 8, fontSize: 15 }} onClick={ev => { ev.stopPropagation(); toggleLink(i) }}><Icon name="link" /></button>}
+                <div style={{ display: 'flex', gap: 2 }}>
+                  <button className="iconbtn" aria-label="Move up" style={{ width: 28, height: 24, borderRadius: 7, fontSize: 12 }} onClick={ev => { ev.stopPropagation(); move(i, -1) }}><Icon name="chevronUp" /></button>
+                  <button className="iconbtn" aria-label="Move down" style={{ width: 28, height: 24, borderRadius: 7, fontSize: 12 }} onClick={ev => { ev.stopPropagation(); move(i, 1) }}><Icon name="chevronDown" /></button>
+                </div>
+              </div>}
         </div>
       </div>
     })}</div> : <div className="empty"><div className="ico"><Icon name="dumbbell" /></div>{t('No exercises yet — add your first one.')}</div>}
@@ -93,9 +121,12 @@ export default function RoutineEdit() {
       </div>
     })()}
 
-    <div className="small dim row" style={{ margin: '10px 2px', gap: 5 }}><Icon name="link" style={{ fontSize: 13 }} />{t('Tap the link button on an exercise to superset it with the one above — you’ll do them back-to-back.')}</div>
-    <Button variant="primary" onClick={() => exercisePicker(ex => exConfigSheet(ex, null, cfg => edit(x => { x.push({ id: ex.id, ...cfg }) }), null, r))} icon="plus">{t('Add exercise')}</Button>
-    <div style={{ height: 10 }} />
+    {!locked && <>
+      <div className="small dim row" style={{ margin: '10px 2px', gap: 5 }}><Icon name="link" style={{ fontSize: 13 }} />{t('Tap the link button on an exercise to superset it with the one above — you’ll do them back-to-back.')}</div>
+      <Button variant="primary" onClick={() => exercisePicker(ex => exConfigSheet(ex, null, cfg => edit(x => { x.push({ id: ex.id, ...cfg }) }), null, r))} icon="plus">{t('Add exercise')}</Button>
+      <div style={{ height: 10 }} />
+    </>}
+    {locked && <div style={{ height: 16 }} />}
     <Button variant="danger" onClick={() => confirmSheet({
       title: t('Delete routine?'), message: t('“{0}” and its exercises will be removed.', r.name), confirmText: t('Delete'), danger: true,
       onConfirm: () => {
