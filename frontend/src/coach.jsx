@@ -13,13 +13,13 @@ import { useStore } from './store/useStore.js'
 import { useUI } from './store/useUI.js'
 import { t } from './lib/i18n.js'
 import { MOBILE, shareExport } from './lib/mobile.js'
-import { fmtNum, fmtDate, todayISO } from './lib/format.js'
+import { fmtNum, fmtDate, todayISO, ACCENTS } from './lib/format.js'
 import { buildPlanBundle, parsePlan, mergePlan } from './lib/plan-share.js'
 import {
   generateIdentity, publicIdentity, coachCode,
   signPlan, verifyPlan, encryptReport, decryptReport, exportRecovery,
 } from './lib/coach-crypto.js'
-import { buildClientReport } from './lib/coach-report.js'
+import { buildClientReport, clientReportHTML } from './lib/coach-report.js'
 import Icon from './components/Icon.jsx'
 import { Button } from './components/ui.jsx'
 
@@ -50,6 +50,90 @@ function FilePick({ inputRef, onPick }) {
     }} />
 }
 const codeChip = code => <span className="mono" style={{ fontSize: 13, letterSpacing: '.04em' }}>{code}</span>
+
+// Render an HTML string to the print dialog (→ Save as PDF) via a hidden iframe — same technique
+// as plan-share's printPlan, so it never navigates away or trips a popup blocker.
+function printHTML(html) {
+  const ifr = document.createElement('iframe')
+  ifr.setAttribute('aria-hidden', 'true')
+  ifr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;'
+  document.body.appendChild(ifr)
+  const cleanup = () => { try { ifr.remove() } catch (e) { /* */ } }
+  const run = () => {
+    const w = ifr.contentWindow
+    if (!w) { cleanup(); return }
+    w.onafterprint = cleanup
+    setTimeout(cleanup, 60000)
+    w.focus()
+    try { w.print() } catch (e) { cleanup() }
+  }
+  const doc = ifr.contentWindow.document
+  doc.open(); doc.write(html); doc.close()
+  if (doc.readyState === 'complete') setTimeout(run, 120)
+  else ifr.onload = () => setTimeout(run, 120)
+}
+
+// A brand's accent as a CSS color: a stored ACCENTS key resolves to its hex, a hex passes through.
+const brandColor = brand => (brand && (ACCENTS[brand.accent] || brand.accent)) || 'var(--acc)'
+
+/* ============================ white-label brand ============================ */
+function BrandEditor({ close }) {
+  const coach = useStore(s => s.S.coach)
+  const [accent, setAccent] = useState(coach?.brand?.accent || 'lime')
+  const [label, setLabel] = useState(coach?.brand?.label || coach?.name || '')
+  const [logo, setLogo] = useState(coach?.brand?.logo || '')
+  const logoRef = useRef(null)
+  const pickLogo = ev => {
+    const f = ev.target.files[0]; ev.target.value = ''
+    if (!f) return
+    if (f.size > 400 * 1024) { toast(t('Logo is too big — pick one under 400 KB')); return }
+    const r = new FileReader(); r.onload = () => setLogo(r.result); r.readAsDataURL(f)
+  }
+  const save = () => {
+    update(s => { if (s.coach) s.coach.brand = { accent, label: label.trim(), logo } })
+    close(); toast(t('Brand saved'))
+  }
+  return <>
+    <h3>{t('Your brand')}</h3>
+    <div className="muted small" style={{ marginBottom: 12, lineHeight: 1.5 }}>{t('Your clients see this on the plans and card you send — your logo, colour and name.')}</div>
+    <input className="input" placeholder={t('Brand name shown to clients')} value={label} onChange={e => setLabel(e.target.value)} />
+    <div className="row" style={{ gap: 12, alignItems: 'center', margin: '14px 0' }}>
+      <div style={{ width: 52, height: 52, borderRadius: 12, background: 'var(--surface-3)', display: 'grid', placeItems: 'center', overflow: 'hidden', border: '1px solid var(--sep)' }}>
+        {logo ? <img src={logo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Icon name="person" />}
+      </div>
+      <Button size="sm" icon="upload" onClick={() => logoRef.current?.click()}>{logo ? t('Change logo') : t('Add logo')}</Button>
+      {logo && <Button size="sm" variant="ghost" className="dim" onClick={() => setLogo('')}>{t('Remove')}</Button>}
+      <input ref={logoRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={pickLogo} />
+    </div>
+    <div className="lrow-t" style={{ marginBottom: 8 }}>{t('Accent color')}</div>
+    <div className="swatches" style={{ marginBottom: 16 }}>
+      {Object.entries(ACCENTS).map(([k, c]) => (
+        <button key={k} className={'swatch' + (accent === k ? ' on' : '')} style={{ background: c }} onClick={() => setAccent(k)} aria-label={k} />
+      ))}
+    </div>
+    <Button variant="primary" onClick={save}>{t('Save brand')}</Button>
+    <div style={{ height: 8 }} />
+    <Button variant="ghost" className="dim" onClick={close}>{t('Cancel')}</Button>
+  </>
+}
+export const brandSheet = () => openSheet(close => <BrandEditor close={close} />)
+
+// The coach's brand as a banner the client sees — logo, name, accent stripe.
+function CoachBanner({ brand, name, code }) {
+  const col = brandColor(brand)
+  return <div className="card" style={{ marginBottom: 14, borderLeft: `3px solid ${col}` }}>
+    <div className="row" style={{ gap: 12, alignItems: 'center' }}>
+      <div style={{ width: 44, height: 44, borderRadius: 10, background: 'var(--surface-3)', display: 'grid', placeItems: 'center', overflow: 'hidden', flex: 'none' }}>
+        {brand?.logo ? <img src={brand.logo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Icon name="person" style={{ color: col }} />}
+      </div>
+      <div className="grow">
+        <div style={{ fontSize: 17, fontWeight: 700 }}>{brand?.label || name || t('Your coach')}</div>
+        <div className="small dim">{codeChip(code)}</div>
+      </div>
+      <Icon name="checkCircle" style={{ color: col }} />
+    </div>
+  </div>
+}
 
 /* ============================ become a coach ============================ */
 function BecomeCoach({ close }) {
@@ -87,7 +171,7 @@ function CoachTools({ close }) {
   if (!coach) return null
 
   const shareCard = () => shareJSON(
-    { opengym_coach_card: 1, code: coach.code, name: coach.name || '', ...publicIdentity(coach.id) },
+    { opengym_coach_card: 1, code: coach.code, name: coach.name || '', brand: coach.brand || null, ...publicIdentity(coach.id) },
     'coach-card-' + todayISO() + '.ogc',
   )
   const backupRecovery = () => shareJSON({ note: 'openGym coach recovery — keep private', recovery: exportRecovery(coach.id) }, 'coach-recovery.txt')
@@ -113,6 +197,8 @@ function CoachTools({ close }) {
     </div>
     <Button variant="primary" icon="upload" onClick={shareCard}>{t('Share my coach card')}</Button>
     <div className="dim small" style={{ margin: '7px 2px 0', lineHeight: 1.4 }}>{t('Send this to a client once so they can pair with you and verify your plans.')}</div>
+    <div style={{ height: 10 }} />
+    <Button icon="star" onClick={() => { close(); brandSheet() }}>{t('Your brand (white-label)')}</Button>
     <div style={{ height: 14 }} />
     <Button icon="clipboard" onClick={() => { close(); signPlanSheet() }}>{t('Sign & share a plan')}</Button>
     <div style={{ height: 8 }} />
@@ -160,13 +246,21 @@ function SignPlan({ close }) {
 export const signPlanSheet = () => openSheet(close => <SignPlan close={close} />)
 
 /* ============================ coach dashboard (multi-client) ============================ */
-function ClientCard({ c }) {
+function printClientReport(c, coach) {
+  const key = coach?.brand?.accent
+  const accent = key ? (ACCENTS[key] || key) : undefined
+  printHTML(clientReportHTML(c, { coachName: coach?.brand?.label || coach?.name || '', accent }))
+}
+function ClientCard({ c, coach }) {
   const r = c.report || {}
   const bests = (r.bests || []).slice(0, 3)
   return <div className="card" style={{ marginBottom: 12 }}>
     <div className="row between" style={{ alignItems: 'baseline' }}>
       <div className="tt" style={{ fontSize: 16, fontWeight: 700 }}>{c.name}</div>
-      <div className="small dim">{fmtDate(c.at)}</div>
+      <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+        {!MOBILE && <button className="iconbtn" aria-label={t('Save PDF')} title={t('Save PDF')} onClick={() => printClientReport(c, coach)}><Icon name="download" /></button>}
+        <div className="small dim">{fmtDate(c.at)}</div>
+      </div>
     </div>
     <div className="row" style={{ gap: 14, marginTop: 8, flexWrap: 'wrap' }}>
       <div><div className="muted small">{t('Sessions')}</div><div style={{ fontWeight: 600 }}>{r.workouts?.count ?? 0}</div></div>
@@ -197,7 +291,7 @@ function CoachClients({ close }) {
     <FilePick inputRef={importRef} onPick={onReport} />
     {clients.length === 0
       ? <div className="empty"><div className="ico"><Icon name="person" /></div>{t('No client reports yet. Ask a client to send you one from “My coach”.')}</div>
-      : <div className="list-plain">{clients.slice().sort((a, b) => (a.at < b.at ? 1 : -1)).map((c, i) => <ClientCard key={i} c={c} />)}</div>}
+      : <div>{clients.slice().sort((a, b) => (a.at < b.at ? 1 : -1)).map((c, i) => <ClientCard key={i} c={c} coach={coach} />)}</div>}
   </>
 }
 export const coachClientsSheet = () => openSheet(close => <CoachClients close={close} />)
@@ -207,7 +301,7 @@ function PairCoach({ close }) {
   const pickRef = useRef(null)
   const pair = card => {
     if (!card || card.opengym_coach_card !== 1 || !card.sign_pub || !card.box_pub) { toast(t('That’s not a coach card')); return }
-    update(s => { s.myCoach = { code: card.code, name: card.name || '', sign_pub: card.sign_pub, box_pub: card.box_pub } })
+    update(s => { s.myCoach = { code: card.code, name: card.name || '', brand: card.brand || null, sign_pub: card.sign_pub, box_pub: card.box_pub } })
     close(); toast(t('Paired with {0}', card.name || card.code))
     myCoachSheet()
   }
@@ -254,10 +348,7 @@ function MyCoach({ close }) {
 
   return <>
     <h3>{t('My coach')}</h3>
-    <div className="card" style={{ marginBottom: 14 }}>
-      <div className="row between"><div><div style={{ fontSize: 17, fontWeight: 700 }}>{my.name || t('Your coach')}</div><div className="small dim">{codeChip(my.code)}</div></div>
-        <Icon name="checkCircle" style={{ color: 'var(--acc)' }} /></div>
-    </div>
+    <CoachBanner brand={my.brand} name={my.name} code={my.code} />
     <Button variant="primary" icon="download" onClick={() => planRef.current?.click()}>{t('Import a plan from my coach')}</Button>
     <FilePick inputRef={planRef} onPick={onPlan} />
     <div className="dim small" style={{ margin: '7px 2px 0', lineHeight: 1.4 }}>{t('Verified as really from your coach, and flagged if it was tampered with.')}</div>
