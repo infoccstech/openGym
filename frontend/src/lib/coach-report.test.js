@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildDemoState } from './demoSeed.js'
-import { buildClientReport } from './coach-report.js'
+import { buildClientReport, clientReportHTML } from './coach-report.js'
 
 const S = buildDemoState()
 
@@ -27,5 +27,28 @@ describe('buildClientReport', () => {
     expect(r.workouts.count).toBe(0)
     expect(r.bests).toEqual([])
     expect(r.bodyweight).toBeNull()
+  })
+})
+
+describe('clientReportHTML', () => {
+  const report = buildClientReport(S, { name: 'Ana', at: '2026-08-19' })
+  const client = { name: 'Ana', at: '2026-08-19', report }
+
+  it('renders a self-contained HTML document branded for the coach', () => {
+    const html = clientReportHTML(client, { coachName: 'Coach D', accent: '#84cc16' })
+    expect(html.startsWith('<!doctype html>')).toBe(true)
+    expect(html).toContain('Ana')
+    expect(html).toContain('Coach D')
+    expect(html).toContain('progress report')
+    expect(html).toContain('Recent sessions')
+  })
+  it('escapes user text (no injection through a name)', () => {
+    const html = clientReportHTML({ name: '<script>x</script>', at: '2026-08-19', report }, {})
+    expect(html).not.toContain('<script>x')
+    expect(html).toContain('&lt;script&gt;')
+  })
+  it('degrades gracefully with an empty report', () => {
+    const html = clientReportHTML({ name: 'Nobody', at: '2026-08-19', report: {} }, {})
+    expect(html).toContain('No sessions logged.')
   })
 })
