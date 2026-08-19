@@ -16,7 +16,11 @@ export const DEF = {
   // that a profile which never chose (loaded state is overlaid on DEF, on every path: local,
   // server pull, backup import) still falls back to the `showRir` boolean this replaced and
   // keeps the column it had. See effortOf.
-  reminder: { on: false, time: '08:00', tz: null }, effort: null
+  reminder: { on: false, time: '08:00', tz: null }, effort: null,
+  // Coaching (opt-in). `coach` is this device's own coach identity (private keys) once the user
+  // becomes a trainer; `myCoach` is the public card of the trainer a client paired with; and
+  // `coachClients` holds the decrypted snapshots a coach has imported from their clients.
+  coach: null, myCoach: null, coachClients: []
 }
 const clone = o => JSON.parse(JSON.stringify(o))
 
