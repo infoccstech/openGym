@@ -11,6 +11,7 @@ import { t, LANGS, INSTR_LANGS } from '../lib/i18n.js'
 import { DEMO, REPO } from '../lib/demo.js'
 import { MOBILE, shareExport, syncReminder } from '../lib/mobile.js'
 import { loadStarterPlan, confirmSheet, importFromApp } from '../sheets.jsx'
+import { becomeCoachSheet, coachToolsSheet, pairCoachSheet, myCoachSheet } from '../coach.jsx'
 import Icon from '../components/Icon.jsx'
 import { Section, Row, SelectRow, Switch, Segmented, Button, TextField } from '../components/ui.jsx'
 
@@ -170,6 +171,18 @@ export default function Settings() {
           ))}
         </div>
       </div>
+    </Section>
+
+    {/* ---------- coach mode (opt-in): trainer ↔ client over signed/encrypted files ---------- */}
+    <Section title={t('Coach')}>
+      {!S.coach && <Row icon="person" iconTint="var(--acc)" title={t('I’m a coach')}
+        subtitle={t('Create and sign plans for your clients')} accessory="chevron" onClick={becomeCoachSheet} />}
+      {S.coach && <Row icon="key" iconTint="var(--acc)" title={t('Coach dashboard')}
+        subtitle={S.coach.code} accessory="chevron" onClick={coachToolsSheet} />}
+      {!S.myCoach && <Row icon="clipboard" iconTint="var(--teal)" title={t('I have a coach')}
+        subtitle={t('Pair to get verified plans')} accessory="chevron" onClick={pairCoachSheet} />}
+      {S.myCoach && <Row icon="checkCircle" iconTint="var(--teal)" title={t('My coach: {0}', S.myCoach.name || S.myCoach.code)}
+        accessory="chevron" onClick={myCoachSheet} />}
     </Section>
 
     {/* ---------- data: fill it, bring things over, back it up, wipe it ---------- */}
